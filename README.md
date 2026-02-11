@@ -174,14 +174,74 @@ La política quedará registrada en el manifiesto junto con su resultado.
 
 La arquitectura permite incorporar:
 
-- Firma digital del manifiesto
-- Almacenamiento inmutable (WORM) del decision log
-- Versionado formal de reglas
-- Métricas SLA por etapa
-- Lineage formal input-output
-- Integración con sistemas de auditoría externos
+Este workflow fue diseñado pensando en escenarios donde la trazabilidad y la auditabilidad son requisitos estructurales, no accesorios.
 
-Sin rediseñar el sistema.
+El sistema incorpora explícitamente:
+
+1. Deterministic Run Identity
+Cada ejecución genera:
+
+run_id (UUID)
+
+run_key legible
+
+hash SHA256 del archivo de entrada
+
+Esto permite reproducibilidad verificable.
+
+2. Evidence Log desacoplado
+El archivo decision_log.jsonl registra:
+
+etapa
+
+evento
+
+severidad
+
+record_id
+
+rule_id
+
+razón de rechazo
+
+timestamp UTC
+
+Esto construye una cadena de evidencia trazable.
+
+3. Policy Engine explícito
+Las reglas de elegibilidad:
+
+son objetos tipados
+
+tienen severity
+
+están registradas en el manifest
+
+son versionables
+
+El código ejecuta la política, pero la política es visible.
+
+4. Quality Gate explícito
+La política de salida está declarada:
+
+registros válidos → normalized_requests.csv
+
+registros inválidos → rejected_requests.csv (quarantine)
+
+Esto separa procesamiento de control.
+
+5. Manifest como contrato del run
+El run_manifest.json actúa como:
+
+contrato de ejecución
+
+índice de artefactos
+
+resumen de métricas
+
+snapshot del entorno
+
+Permite auditoría posterior sin ejecutar código.
 
 ---
 
