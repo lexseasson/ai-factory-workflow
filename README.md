@@ -197,6 +197,8 @@ Sin rediseñar el sistema.
 No busca sobre‑ingeniería.
 Busca claridad y control.
 
+Ver carpeta /ejemplos para una ejecución real del workflow.
+
 ---
 
 ## Conclusión
@@ -211,3 +213,5 @@ Esta solución cumple con el challenge técnico y agrega una capa explícita de:
 No está diseñada solo para procesar datos.
 
 Está diseñada para justificar decisiones.
+
+
