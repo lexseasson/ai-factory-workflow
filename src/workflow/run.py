@@ -14,7 +14,13 @@ from workflow.audit import AuditEvent, AuditLogger, StageTimer, utc_now_iso
 from workflow.engine import validate
 from workflow.io import InputFormatError, read_csv, write_clean_csv
 from workflow.normalize import NormalizationError, normalize
-from workflow.quality import build_quality_report, failures_dict, write_quality_report
+from workflow.quality import (
+    QualityGatePolicy,
+    build_quality_report,
+    evaluate_quality_gate,
+    failures_dict,
+    write_quality_report,
+)
 from workflow.rules import AmountRangeRule, CurrencyAllowedRule, RequiredFieldsRule, Rule
 
 PIPELINE_VERSION = "0.2.0"
@@ -99,7 +105,6 @@ def main() -> int:
     # --------------------------
     # MANIFEST BASE (HEADER)
     # --------------------------
-
     manifest: dict[str, Any] = {
         "schema": MANIFEST_SCHEMA,
         "pipeline": {
@@ -131,15 +136,22 @@ def main() -> int:
             "run_manifest": _relpath(manifest_path, run_dir),
         },
     }
-
     _write_json(manifest_path, manifest)
 
-    log("INFO", "workflow", "run_started", "Workflow execution started")
+    log(
+        "INFO",
+        "workflow",
+        "run_started",
+        "Workflow execution started",
+        run_key=run_key,
+        run_label=run_label,
+        input_path=str(args.input),
+        output_dir=str(run_dir),
+    )
 
     # --------------------------
     # INGEST
     # --------------------------
-
     ingest_timer = StageTimer()
     try:
         raw_rows = read_csv(args.input)
@@ -153,24 +165,25 @@ def main() -> int:
         )
     except InputFormatError as exc:
         manifest["run"]["status"] = "FAILED"
+        manifest["run"]["failed_stage"] = "ingest"
         manifest["run"]["error"] = str(exc)
+        manifest["run"]["generated_utc"] = utc_now_iso()
         _write_json(manifest_path, manifest)
-        log("ERROR", "ingest", "input_invalid", str(exc))
+        log("ERROR", "ingest", "input_invalid", str(exc), elapsed_ms=ingest_timer.elapsed_ms())
         return 2
 
     # --------------------------
-    # RULES
+    # RULES (eligibility)
     # --------------------------
-
     rules: list[Rule] = [
         RequiredFieldsRule(),
         CurrencyAllowedRule(),
         AmountRangeRule(),
     ]
-
     manifest["rules"] = [
         {"rule_id": r.rule_id, "severity": str(r.severity), "scope": "eligibility"} for r in rules
     ]
+    _write_json(manifest_path, manifest)
 
     failures_by_rule = failures_dict()
     clean_out: list[dict[str, object]] = []
@@ -180,9 +193,8 @@ def main() -> int:
     invalid = 0
 
     # --------------------------
-    # PROCESS
+    # PROCESS (normalize + validate)
     # --------------------------
-
     process_timer = StageTimer()
 
     for raw in raw_rows:
@@ -206,6 +218,7 @@ def main() -> int:
                 "record_rejected",
                 "Normalization failed",
                 record_id=record_id,
+                rule_id="NORMALIZATION_ERROR",
                 reason=str(exc),
             )
             continue
@@ -235,22 +248,31 @@ def main() -> int:
 
             for failure in result.failures:
                 failures_by_rule[failure.rule_id].append(record_id)
+                log(
+                    "WARN",
+                    "validate",
+                    "record_rejected",
+                    "Eligibility rule failed",
+                    record_id=record_id,
+                    rule_id=failure.rule_id,
+                    reason=failure.reason,
+                )
 
             rejected_out.append(
                 {
                     "id_solicitud": normalized.id_solicitud,
+                    "fecha_solicitud": normalized.fecha_solicitud.isoformat(),
+                    "tipo_producto": normalized.tipo_producto,
+                    "id_cliente": normalized.id_cliente,
+                    "monto_o_limite": normalized.monto_o_limite,
+                    "moneda": normalized.moneda,
+                    "pais": normalized.pais,
+                    "is_vip": normalized.is_vip,
+                    "risk_score": normalized.risk_score,
+                    "risk_bucket": normalized.risk_bucket,
                     "reject_rule_ids": "|".join(rule_ids),
                     "reject_reasons": " | ".join(reasons),
                 }
-            )
-
-            log(
-                "WARN",
-                "validate",
-                "record_rejected",
-                "Eligibility rule failed",
-                record_id=record_id,
-                rule_ids=rule_ids,
             )
 
     log(
@@ -267,6 +289,7 @@ def main() -> int:
     # --------------------------
     # OUTPUTS
     # --------------------------
+    output_timer = StageTimer()
 
     write_clean_csv(normalized_path, clean_out)
     write_clean_csv(rejected_path, rejected_out)
@@ -278,23 +301,45 @@ def main() -> int:
         invalid=invalid,
         failures_by_rule=dict(failures_by_rule),
     )
-    write_quality_report(quality_path, quality_report)
+
+    policy = QualityGatePolicy()
+    write_quality_report(quality_path, quality_report, policy=policy)
+
+    log(
+        "INFO",
+        "output",
+        "artifacts_written",
+        "Artifacts generated",
+        elapsed_ms=output_timer.elapsed_ms(),
+        normalized_requests=_relpath(normalized_path, run_dir),
+        rejected_requests=_relpath(rejected_path, run_dir),
+        data_quality_report=_relpath(quality_path, run_dir),
+        decision_log=_relpath(decision_log_path, run_dir),
+    )
 
     # --------------------------
     # QUALITY GATE (GOVERNANCE)
     # --------------------------
-
     total_records = len(raw_rows)
-    invalid_rate = invalid / total_records if total_records > 0 else 0.0
-    threshold = 0.05
-    gate_result = "PASS" if invalid_rate <= threshold else "FAIL"
+    acceptance_rate = 0.0 if total_records <= 0 else valid / total_records
+    rejection_rate = 0.0 if total_records <= 0 else invalid / total_records
+
+    gate = evaluate_quality_gate(
+        acceptance_rate=acceptance_rate,
+        rejection_rate=rejection_rate,
+        policy=policy,
+    )
 
     manifest["quality_gate"] = {
-        "policy_version": "1.0",
-        "policy": "invalid_rate <= 0.05",
-        "invalid_rate": round(invalid_rate, 6),
-        "threshold": threshold,
-        "result": gate_result,
+        "policy": {
+            "policy_id": policy.policy_id,
+            "max_rejection_rate": round(policy.max_rejection_rate, 4),
+            "min_acceptance_rate": round(policy.min_acceptance_rate, 4),
+        },
+        "decision": gate.decision,
+        "rationale": gate.rationale,
+        "metrics_snapshot": gate.metrics_snapshot,
+        "evidence": _relpath(quality_path, run_dir),
     }
 
     log(
@@ -302,32 +347,39 @@ def main() -> int:
         "governance",
         "quality_gate_evaluated",
         "Quality gate evaluated",
-        invalid_rate=invalid_rate,
-        threshold=threshold,
-        result=gate_result,
+        decision=gate.decision,
+        policy_id=policy.policy_id,
+        acceptance_rate=round(acceptance_rate, 4),
+        rejection_rate=round(rejection_rate, 4),
+        evidence=_relpath(quality_path, run_dir),
     )
 
     # --------------------------
     # FINALIZE MANIFEST
     # --------------------------
-
     manifest["counts"] = {
         "total": total_records,
         "valid": valid,
         "invalid": invalid,
     }
-
     manifest["run"]["elapsed_ms_total"] = total_timer.elapsed_ms()
-    manifest["run"]["status"] = "SUCCESS" if gate_result == "PASS" else "COMPLETED_WITH_WARNINGS"
+    manifest["run"]["status"] = "SUCCESS" if gate.decision == "PASS" else "COMPLETED_WITH_WARNINGS"
+    manifest["run"]["generated_utc"] = utc_now_iso()
 
     _write_json(manifest_path, manifest)
 
-    log("INFO", "workflow", "run_finished", "Workflow execution finished")
+    log(
+        "INFO",
+        "workflow",
+        "run_finished",
+        "Workflow execution finished",
+        status=manifest["run"]["status"],
+        elapsed_ms=total_timer.elapsed_ms(),
+    )
 
     print(f"run_id={run_id}")
     print(f"run_key={run_key}")
     print(f"run_dir={run_dir}")
-
     return 0
 
 

@@ -1,0 +1,52 @@
+{
+  "pipeline_version": "0.1.0",
+  "run": {
+    "run_id": "9c6013e0-5d9c-4cda-b64d-7afff4cd8ff6",
+    "run_key": "2026-02-11_215216Z__backoffice_sample__9c6013e0",
+    "run_label": "backoffice_sample",
+    "generated_utc": "2026-02-11T21:52:16+00:00",
+    "status": "SUCCESS",
+    "elapsed_ms_total": 66
+  },
+  "environment": {
+    "python": "3.11.9",
+    "platform": "windows-10"
+  },
+  "input": {
+    "path": "data\\sample_requests.csv",
+    "sha256": "fb39b2f8ee26021d82c796b61bab412fb4166b06421a4593bf3128f6c2c3d273"
+  },
+  "quality_gate": {
+    "policy": "valid_records -> normalized_requests.csv; invalid_records -> rejected_requests.csv",
+    "quarantine": "rejected_requests.csv"
+  },
+  "artifacts": {
+    "decision_log": "decision_log.jsonl",
+    "normalized_requests": "normalized_requests.csv",
+    "rejected_requests": "rejected_requests.csv",
+    "data_quality_report": "data_quality_report.json",
+    "run_manifest": "run_manifest.json"
+  },
+  "rules": [
+    {
+      "rule_id": "REQUIRED_FIELDS",
+      "severity": "HIGH",
+      "scope": "eligibility"
+    },
+    {
+      "rule_id": "CURRENCY_ALLOWED",
+      "severity": "MEDIUM",
+      "scope": "eligibility"
+    },
+    {
+      "rule_id": "AMOUNT_RANGE",
+      "severity": "MEDIUM",
+      "scope": "eligibility"
+    }
+  ],
+  "counts": {
+    "total": 20,
+    "valid": 9,
+    "invalid": 11
+  }
+}
