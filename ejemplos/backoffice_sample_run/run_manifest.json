@@ -5,13 +5,15 @@
     "component": "backoffice_admission_workflow"
   },
   "run": {
-    "run_id": "6a6ea878-a633-4f11-aec8-4905f4cf953a",
-    "run_key": "2026-02-12_194022Z__backoffice_sample__6a6ea878",
+    "run_id": "a9d8eabf-b915-4dc9-9232-a4929b99e43f",
+    "run_key": "2026-02-12_205831Z__backoffice_sample__a9d8eabf",
     "run_label": "backoffice_sample",
-    "folder": "artifacts\\runs\\2026-02-12_194022Z__backoffice_sample__6a6ea878",
-    "generated_utc": "2026-02-12T19:40:22+00:00",
+    "folder": "artifacts\\runs\\2026-02-12_205831Z__backoffice_sample__a9d8eabf",
     "status": "COMPLETED_WITH_WARNINGS",
-    "elapsed_ms_total": 66
+    "start_utc": "2026-02-12T20:58:31+00:00",
+    "end_utc": "2026-02-12T20:58:31+00:00",
+    "elapsed_ms_total": 83,
+    "command": "'C:\\Users\\eugen\\source\\repos\\ai-factory-workflow\\src\\workflow\\run.py' --input 'data\\sample_requests.csv' --out artifacts --run-label backoffice_sample --format auto"
   },
   "environment": {
     "python_version": "3.11.9",
@@ -19,19 +21,39 @@
     "argv": [
       "C:\\Users\\eugen\\source\\repos\\ai-factory-workflow\\src\\workflow\\run.py",
       "--input",
-      "data/sample_requests.csv",
-      "--format",
-      "csv",
+      "data\\sample_requests.csv",
       "--out",
       "artifacts",
       "--run-label",
-      "backoffice_sample"
+      "backoffice_sample",
+      "--format",
+      "auto"
     ]
   },
   "input": {
     "path": "data\\sample_requests.csv",
     "format": "csv",
+    "format_requested": "auto",
+    "format_resolved": "csv",
     "sha256": "fb39b2f8ee26021d82c796b61bab412fb4166b06421a4593bf3128f6c2c3d273"
+  },
+  "quality_gate": {
+    "policy": {
+      "policy_id": "quality_gate.v1",
+      "max_rejection_rate": 0.4,
+      "min_acceptance_rate": 0.1
+    },
+    "inputs": {
+      "acceptance_rate": "counts.valid / counts.total",
+      "rejection_rate": "counts.invalid / counts.total"
+    },
+    "decision": "WARN",
+    "rationale": "Rejection rate above threshold: 0.5500 > 0.4000",
+    "metrics_snapshot": {
+      "acceptance_rate": 0.45,
+      "rejection_rate": 0.55
+    },
+    "evidence": "data_quality_report.json"
   },
   "artifacts": {
     "decision_log": "decision_log.jsonl",
@@ -39,6 +61,28 @@
     "rejected_requests": "rejected_requests.csv",
     "data_quality_report": "data_quality_report.json",
     "run_manifest": "run_manifest.json"
+  },
+  "artifacts_integrity": {
+    "decision_log": {
+      "path": "decision_log.jsonl",
+      "sha256": "a5bd9453eff5af03b4a8f82bbe3ffb7901661cfe46c18f492a01a10d5f9db11d"
+    },
+    "normalized_requests": {
+      "path": "normalized_requests.csv",
+      "sha256": "2e48069ce62a2354e7522657b382c1aabd091abfa11385c0a239feeae22dc015"
+    },
+    "rejected_requests": {
+      "path": "rejected_requests.csv",
+      "sha256": "74d788836eec0f46ab5fd69e8657b44a9ecc58d0efa3b4c750894f8ce12d4d3a"
+    },
+    "data_quality_report": {
+      "path": "data_quality_report.json",
+      "sha256": "4f88bf667ea3ae6f88a5115f0ec7e76b5d6cf19b4f5ec450413f849bde282945"
+    },
+    "run_manifest": {
+      "path": "run_manifest.json",
+      "sha256": "70f15b72e361428db5cf9d5349935db0785f54f6f4c5b1b9150b1e0f2d0b344a"
+    }
   },
   "rules": [
     {
@@ -57,20 +101,6 @@
       "scope": "eligibility"
     }
   ],
-  "quality_gate": {
-    "policy": {
-      "policy_id": "quality_gate.v1",
-      "max_rejection_rate": 0.4,
-      "min_acceptance_rate": 0.1
-    },
-    "decision": "WARN",
-    "rationale": "Rejection rate above threshold: 0.5500 > 0.4000",
-    "metrics_snapshot": {
-      "acceptance_rate": 0.45,
-      "rejection_rate": 0.55
-    },
-    "evidence": "data_quality_report.json"
-  },
   "counts": {
     "total": 20,
     "valid": 9,

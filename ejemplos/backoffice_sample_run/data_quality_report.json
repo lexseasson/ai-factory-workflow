@@ -1,7 +1,7 @@
 {
   "schema": "ai_factory.workflow.data_quality_report.v1",
-  "run_id": "6a6ea878-a633-4f11-aec8-4905f4cf953a",
-  "generated_utc": "2026-02-12T19:40:22+00:00",
+  "run_id": "a9d8eabf-b915-4dc9-9232-a4929b99e43f",
+  "generated_utc": "2026-02-12T20:58:31+00:00",
   "totals": {
     "total": 20,
     "valid": 9,
