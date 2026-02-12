@@ -1,42 +1,50 @@
+
 # AI Factory – Motor de Control de Admisión (Backoffice)
 
 ## Resumen Ejecutivo
 
-Este repositorio implementa un **Motor de Control de Admisión** diseñado para entornos regulados.
+Este repositorio implementa un **Motor de Control de Admisión orientado a entornos regulados**.
 
-No es un ETL simple.
-Es un flujo gobernado que transforma solicitudes de alta en decisiones auditables.
+No es un simple flujo de transformación de datos.
+Es una arquitectura de decisión auditada, reproducible y gobernada.
 
-Fue construido bajo principios de:
+El objetivo no es procesar registros.
+El objetivo es **controlar decisiones con evidencia estructurada**.
+
+Fue diseñado bajo principios explícitos de:
 
 - Auditabilidad total
-- Gobernanza explícita
+- Gobernanza como primera clase
 - Identidad determinística de ejecución
-- Evidencia estructurada
-- Reproducibilidad
+- Evidencia estructurada por evento
+- Política versionable
+- Reproducibilidad operacional
 
-El objetivo no es complejidad.
-El objetivo es control.
+Este diseño prioriza claridad arquitectónica por sobre complejidad innecesaria.
 
 ---
 
 ## Contexto del Problema
 
-Las unidades de Back‑Office reciben solicitudes de alta de productos (cuentas, tarjetas, servicios) desde múltiples canales.
+Las unidades de Back‑Office reciben solicitudes de alta de productos (cuentas, tarjetas, servicios) desde múltiples canales y formatos.
 
 Antes de impactar sistemas core, estas solicitudes deben:
 
 1. Normalizarse
 2. Validarse
 3. Clasificarse
-4. Auditarse
-5. Reportarse
+4. Registrarse como evidencia
+5. Evaluarse contra una política de calidad agregada
 
-En un entorno regulado la pregunta crítica es:
+En un entorno regulado la pregunta crítica no es:
 
-> ¿Podemos reconstruir por qué un registro fue aceptado o rechazado?
+> ¿Funciona?
 
-Este motor responde esa pregunta de forma explícita.
+Sino:
+
+> ¿Podemos reconstruir exactamente qué ocurrió, cuándo ocurrió y por qué ocurrió?
+
+Este motor responde esa pregunta de forma explícita y determinística.
 
 ---
 
@@ -44,50 +52,57 @@ Este motor responde esa pregunta de forma explícita.
 
 Flujo implementado:
 
-Entrada → Normalización → Motor de Reglas → Quality Gate → Salidas + Evidencia
+Entrada → Normalización → Motor de Reglas → Quality Gate → Artefactos + Evidencia
 
 Componentes clave:
 
-- **Motor de Reglas** – Validación determinística de elegibilidad
-- **Zona de Cuarentena** – Registros inválidos aislados, no descartados
-- **Decision Log (JSONL)** – Evidencia estructurada de cada decisión
-- **Run Manifest** – Índice auditable del lote completo
-- **Quality Gate** – Política formal sobre métricas agregadas
+- Motor de Reglas determinístico (elegibilidad)
+- Zona de Cuarentena explícita (rejected_requests.csv)
+- Decision Log estructurado (JSONL)
+- Data Quality Report agregando métricas ejecutivas
+- Run Manifest como contrato auditable del lote
+- Quality Gate como política formal desacoplada
 
-Separar transformación, validación y gobernanza fue una decisión intencional.
+La separación entre transformación, validación y gobernanza es intencional.
 
 ---
 
-## Principios de Diseño
+## Principios Arquitectónicos
 
 ### 1. Separación de Responsabilidades
 
 - Normalización ≠ Validación
 - Validación ≠ Gobernanza
 - Gobernanza ≠ Reporte
+- Evidencia ≠ Métrica
 
 Esto mejora:
 
 - Testeabilidad
 - Mantenibilidad
+- Trazabilidad
 - Claridad en auditoría
 
 ---
 
 ### 2. Gobernanza como Primera Clase
 
-Se introdujo un **Quality Gate explícito**:
+Se incorpora un **Quality Gate explícito y versionable**.
 
-Política actual:
+Ejemplo de política:
 
 invalid_rate <= 0.05
 
-Esto incorpora:
+Esto introduce:
 
-- Política versionable
+- Política formal y visible
 - Decisión automatizada
-- Trazabilidad entre métricas y resultado
-- Estado degradado controlado (COMPLETED_WITH_WARNINGS)
+- Snapshot de métricas
+- Evidencia explícita en el manifest
+- Estado degradado controlado
+
+La política no está implícita en el código.
+Está declarada.
 
 ---
 
@@ -97,11 +112,14 @@ Cada ejecución genera:
 
 timestamp__label__short_id
 
-Permite:
+Y registra:
 
-- Reproducibilidad
-- Identificación humana del lote
-- Agrupación determinística de artefactos
+- UUID del run
+- Hash SHA256 del input
+- Entorno de ejecución
+- Argumentos de ejecución
+
+Esto garantiza reproducibilidad verificable.
 
 ---
 
@@ -115,18 +133,9 @@ Cada corrida genera:
 - data_quality_report.json
 - run_manifest.json
 
-El run_manifest contiene:
+El run_manifest actúa como índice auditable completo del lote.
 
-- Versión del pipeline
-- Schema del manifiesto
-- Hash SHA256 del input
-- Catálogo de reglas
-- Conteos agregados
-- Resultado del Quality Gate
-- Tiempos de ejecución
-- Referencia a artefactos
-
-Cada ejecución es una unidad auditable.
+Cada ejecución es una unidad auditable independiente.
 
 ---
 
@@ -137,7 +146,7 @@ set PYTHONPATH=src
 python -m workflow.run --input data/sample_requests.csv --out artifacts --run-label backoffice_sample
 ```
 
-Los artefactos se generan en:
+Artefactos generados en:
 
 ```
 artifacts/runs/<run_key>/
@@ -149,14 +158,15 @@ artifacts/runs/<run_key>/
 
 ### Agregar una nueva regla
 
-1. Implementar nueva clase en `workflow/rules.py`
-2. Agregarla a la lista de reglas en `run.py`
+1. Crear nueva clase en `workflow/rules.py`
+2. Incorporarla en la lista de reglas en `run.py`
 
 Automáticamente:
 
-- Se incluirá en el manifiesto
-- Impactará el reporte de calidad
-- Quedará registrada en el decision log
+- Se registrará en el manifest
+- Impactará métricas agregadas
+- Aparecerá en el decision log
+- Quedará incluida en el reporte de calidad
 
 No requiere modificar la orquestación.
 
@@ -164,82 +174,54 @@ No requiere modificar la orquestación.
 
 ### Modificar la Política de Gobernanza
 
-Cambiar el threshold en el bloque Quality Gate de `run.py`.
+Ajustar la política del Quality Gate en `quality.py`.
 
-La política quedará registrada en el manifiesto junto con su resultado.
+La política queda:
+
+- Versionada
+- Registrada en el manifest
+- Asociada a métricas snapshot
+- Auditada por decisión
 
 ---
 
 ## Controles para Entornos Regulados
 
-La arquitectura permite incorporar:
+Este workflow fue diseñado pensando en escenarios donde la trazabilidad no es opcional.
 
-Este workflow fue diseñado pensando en escenarios donde la trazabilidad y la auditabilidad son requisitos estructurales, no accesorios.
+Incorpora explícitamente:
 
-El sistema incorpora explícitamente:
+1. Deterministic Run Identity  
+   - UUID  
+   - Run key legible  
+   - SHA256 del input  
 
-1. Deterministic Run Identity
-Cada ejecución genera:
+2. Evidence Log desacoplado  
+   - stage  
+   - event  
+   - severity  
+   - record_id  
+   - rule_id  
+   - reason  
+   - timestamp UTC  
 
-run_id (UUID)
+3. Policy Engine visible  
+   - Reglas tipadas  
+   - Severidad declarada  
+   - Registro en manifest  
 
-run_key legible
+4. Quality Gate explícito  
+   - Política formal  
+   - Métricas snapshot  
+   - Decisión trazable  
 
-hash SHA256 del archivo de entrada
-
-Esto permite reproducibilidad verificable.
-
-2. Evidence Log desacoplado
-El archivo decision_log.jsonl registra:
-
-etapa
-
-evento
-
-severidad
-
-record_id
-
-rule_id
-
-razón de rechazo
-
-timestamp UTC
-
-Esto construye una cadena de evidencia trazable.
-
-3. Policy Engine explícito
-Las reglas de elegibilidad:
-
-son objetos tipados
-
-tienen severity
-
-están registradas en el manifest
-
-son versionables
-
-El código ejecuta la política, pero la política es visible.
-
-4. Quality Gate explícito
-La política de salida está declarada:
-
-registros válidos → normalized_requests.csv
-
-registros inválidos → rejected_requests.csv (quarantine)
-
-Esto separa procesamiento de control.
-
-5. Manifest como contrato del run
-El run_manifest.json actúa como:
-
-contrato de ejecución
-
-índice de artefactos
-
-resumen de métricas
-
-snapshot del entorno
+5. Manifest como contrato del run  
+   - Versión del pipeline  
+   - Schema del manifiesto  
+   - Catálogo de reglas  
+   - Conteos agregados  
+   - Resultado del gate  
+   - Referencia a artefactos  
 
 Permite auditoría posterior sin ejecutar código.
 
@@ -248,30 +230,30 @@ Permite auditoría posterior sin ejecutar código.
 ## Qué Demuestra Este Repositorio
 
 - Pensamiento arquitectónico orientado a control
-- Gobernanza explícita
+- Diseño gobernado por política explícita
 - Separación clara entre reglas y orquestación
 - Disciplina de tipado estricto (mypy strict)
 - Calidad automatizada (ruff + pre-commit)
-- Reproducibilidad operacional
+- Evidencia estructurada y reproducible
+- Capacidad de escalar a entornos regulados
 
 No busca sobre‑ingeniería.
-Busca claridad y control.
-
-Ver carpeta /ejemplos para una ejecución real del workflow.
+Busca responsabilidad técnica.
 
 ---
 
 ## Conclusión
 
-Esta solución cumple con el challenge técnico y agrega una capa explícita de:
+Esta solución no solo cumple el challenge técnico.
 
-- Accountability
-- Trazabilidad
-- Gobernanza
+Demuestra:
+
+- Accountability estructural
+- Trazabilidad verificable
+- Gobernanza explícita
 - Control de calidad formal
+- Arquitectura preparada para regulación
 
 No está diseñada solo para procesar datos.
 
 Está diseñada para justificar decisiones.
-
-
