@@ -1,0 +1,4 @@
+﻿id_solicitud|fecha_solicitud|tipo_producto|id_cliente|monto_o_limite|moneda|pais|is_vip|risk_score
+REQ-2001|2026-02-10|cuenta|CLI-3001|150000|ARS|AR|true|15
+REQ-2002|2026-02-11|tarjeta|CLI-3002|2000|USD|AR|false|35
+REQ-2003|2026/02/12|servicio|CLI-3003|250|EUR|UY|false|55

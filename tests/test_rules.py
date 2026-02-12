@@ -2,7 +2,7 @@ from datetime import date
 
 from workflow.engine import validate
 from workflow.models import NormalizedRequest
-from workflow.rules import AmountRangeRule, CurrencyAllowedRule, RequiredFieldsRule
+from workflow.rules import AmountRangeRule, CurrencyAllowedRule, RequiredFieldsRule, Rule
 
 
 def _nr(moneda: str, monto: float, id_cliente: str = "CLI-1") -> NormalizedRequest:
@@ -21,13 +21,13 @@ def _nr(moneda: str, monto: float, id_cliente: str = "CLI-1") -> NormalizedReque
 
 
 def test_validate_accept() -> None:
-    rules = [RequiredFieldsRule(), CurrencyAllowedRule(), AmountRangeRule()]
+    rules: list[Rule] = [RequiredFieldsRule(), CurrencyAllowedRule(), AmountRangeRule()]
     vr = validate(_nr("ARS", 1000), rules)
     assert vr.decision.value == "ACCEPT"
 
 
 def test_validate_reject_currency() -> None:
-    rules = [RequiredFieldsRule(), CurrencyAllowedRule(), AmountRangeRule()]
+    rules: list[Rule] = [RequiredFieldsRule(), CurrencyAllowedRule(), AmountRangeRule()]
     vr = validate(_nr("BRL", 1000), rules)
     assert vr.decision.value == "REJECT"
     assert any(f.rule_id == "CURRENCY_ALLOWED" for f in vr.failures)

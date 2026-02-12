@@ -1,259 +1,98 @@
+﻿# AI Factory Workflow - Challenge Backoffice
 
-# AI Factory – Motor de Control de Admisión (Backoffice)
+Mini-workflow supervisado para alta de productos en Backoffice, orientado a claridad, trazabilidad y control de calidad.
 
-## Resumen Ejecutivo
+## 1. Alcance
 
-Este repositorio implementa un **Motor de Control de Admisión orientado a entornos regulados**.
+Entrada -> normalizacion -> validacion -> reporte de calidad -> artefactos auditables.
 
-No es un simple flujo de transformación de datos.
-Es una arquitectura de decisión auditada, reproducible y gobernada.
+Formato de entrada soportado:
+- `csv`
+- `json`
+- `txt` delimitado (`|`, `;`, `,` o tab)
+- `cobol` fixed-width (layout incluido)
 
-El objetivo no es procesar registros.
-El objetivo es **controlar decisiones con evidencia estructurada**.
+## 2. Arquitectura minima
 
-Fue diseñado bajo principios explícitos de:
+Componentes principales:
+- `workflow.io`: ingesta multi-formato
+- `workflow.normalize`: normalizacion de campos
+- `workflow.rules`: reglas de elegibilidad
+- `workflow.engine`: evaluacion de reglas
+- `workflow.quality`: reporte y quality gate
+- `workflow.audit`: logging estructurado JSONL
+- `workflow.run`: orquestacion del workflow
 
-- Auditabilidad total
-- Gobernanza como primera clase
-- Identidad determinística de ejecución
-- Evidencia estructurada por evento
-- Política versionable
-- Reproducibilidad operacional
+## 3. Reglas implementadas
 
-Este diseño prioriza claridad arquitectónica por sobre complejidad innecesaria.
+- `REQUIRED_FIELDS`: campos obligatorios
+- `CURRENCY_ALLOWED`: monedas permitidas (`ARS`, `USD`, `EUR`)
+- `AMOUNT_RANGE`: rango de `monto_o_limite` (`1` a `1_000_000`)
 
----
+## 4. Layout COBOL fixed-width
 
-## Contexto del Problema
+Cuando se usa `--format cobol`, cada linea se parsea con este layout:
 
-Las unidades de Back‑Office reciben solicitudes de alta de productos (cuentas, tarjetas, servicios) desde múltiples canales y formatos.
+- `id_solicitud`: 0-12
+- `fecha_solicitud`: 12-22
+- `tipo_producto`: 22-34
+- `id_cliente`: 34-46
+- `monto_o_limite`: 46-58
+- `moneda`: 58-61
+- `pais`: 61-63
+- `is_vip`: 63-68
+- `risk_score`: 68-71
 
-Antes de impactar sistemas core, estas solicitudes deben:
+## 5. Ejecucion
 
-1. Normalizarse
-2. Validarse
-3. Clasificarse
-4. Registrarse como evidencia
-5. Evaluarse contra una política de calidad agregada
-
-En un entorno regulado la pregunta crítica no es:
-
-> ¿Funciona?
-
-Sino:
-
-> ¿Podemos reconstruir exactamente qué ocurrió, cuándo ocurrió y por qué ocurrió?
-
-Este motor responde esa pregunta de forma explícita y determinística.
-
----
-
-## Arquitectura General
-
-Flujo implementado:
-
-Entrada → Normalización → Motor de Reglas → Quality Gate → Artefactos + Evidencia
-
-Componentes clave:
-
-- Motor de Reglas determinístico (elegibilidad)
-- Zona de Cuarentena explícita (rejected_requests.csv)
-- Decision Log estructurado (JSONL)
-- Data Quality Report agregando métricas ejecutivas
-- Run Manifest como contrato auditable del lote
-- Quality Gate como política formal desacoplada
-
-La separación entre transformación, validación y gobernanza es intencional.
-
----
-
-## Principios Arquitectónicos
-
-### 1. Separación de Responsabilidades
-
-- Normalización ≠ Validación
-- Validación ≠ Gobernanza
-- Gobernanza ≠ Reporte
-- Evidencia ≠ Métrica
-
-Esto mejora:
-
-- Testeabilidad
-- Mantenibilidad
-- Trazabilidad
-- Claridad en auditoría
-
----
-
-### 2. Gobernanza como Primera Clase
-
-Se incorpora un **Quality Gate explícito y versionable**.
-
-Ejemplo de política:
-
-invalid_rate <= 0.05
-
-Esto introduce:
-
-- Política formal y visible
-- Decisión automatizada
-- Snapshot de métricas
-- Evidencia explícita en el manifest
-- Estado degradado controlado
-
-La política no está implícita en el código.
-Está declarada.
-
----
-
-### 3. Identidad Determinística del Lote
-
-Cada ejecución genera:
-
-timestamp__label__short_id
-
-Y registra:
-
-- UUID del run
-- Hash SHA256 del input
-- Entorno de ejecución
-- Argumentos de ejecución
-
-Esto garantiza reproducibilidad verificable.
-
----
-
-### 4. Evidencia Estructurada
-
-Cada corrida genera:
-
-- decision_log.jsonl
-- normalized_requests.csv
-- rejected_requests.csv
-- data_quality_report.json
-- run_manifest.json
-
-El run_manifest actúa como índice auditable completo del lote.
-
-Cada ejecución es una unidad auditable independiente.
-
----
-
-## Cómo Ejecutar
-
-```
+```powershell
 set PYTHONPATH=src
-python -m workflow.run --input data/sample_requests.csv --out artifacts --run-label backoffice_sample
+python -m workflow.run --input data/sample_requests.csv --format csv --out artifacts --run-label backoffice_csv
 ```
 
-Artefactos generados en:
+Ejemplos por formato:
 
+```powershell
+python -m workflow.run --input data/sample_requests.json --format json --out artifacts --run-label backoffice_json
+python -m workflow.run --input data/sample_requests.txt --format txt --out artifacts --run-label backoffice_txt
+python -m workflow.run --input data/sample_requests.cob --format cobol --out artifacts --run-label backoffice_cobol
 ```
-artifacts/runs/<run_key>/
+
+Tambien se puede usar `--format auto` para inferir por extension.
+
+## 6. Artefactos de salida
+
+Por corrida se genera `artifacts/runs/<run_key>/` con:
+- `normalized_requests.csv`
+- `rejected_requests.csv`
+- `data_quality_report.json`
+- `decision_log.jsonl`
+- `run_manifest.json`
+
+## 7. Cobertura del challenge
+
+- Diseno: `docs/design.md`
+- Implementacion: `src/workflow/`
+- Validaciones: `src/workflow/rules.py`
+- Control de calidad: `src/workflow/quality.py`
+- Logs y trazabilidad: `src/workflow/audit.py` + `run_manifest.json`
+- Instrucciones de ejecucion: este `README.md`
+
+## 8. Calidad de codigo
+
+Tests:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
----
+Incluye:
+- tests unitarios de normalizacion y reglas
+- tests de ingesta multi-formato
+- test E2E del workflow con verificacion de artefactos
 
-## Cómo Extender
+## 9. Versionado
 
-### Agregar una nueva regla
-
-1. Crear nueva clase en `workflow/rules.py`
-2. Incorporarla en la lista de reglas en `run.py`
-
-Automáticamente:
-
-- Se registrará en el manifest
-- Impactará métricas agregadas
-- Aparecerá en el decision log
-- Quedará incluida en el reporte de calidad
-
-No requiere modificar la orquestación.
-
----
-
-### Modificar la Política de Gobernanza
-
-Ajustar la política del Quality Gate en `quality.py`.
-
-La política queda:
-
-- Versionada
-- Registrada en el manifest
-- Asociada a métricas snapshot
-- Auditada por decisión
-
----
-
-## Controles para Entornos Regulados
-
-Este workflow fue diseñado pensando en escenarios donde la trazabilidad no es opcional.
-
-Incorpora explícitamente:
-
-1. Deterministic Run Identity  
-   - UUID  
-   - Run key legible  
-   - SHA256 del input  
-
-2. Evidence Log desacoplado  
-   - stage  
-   - event  
-   - severity  
-   - record_id  
-   - rule_id  
-   - reason  
-   - timestamp UTC  
-
-3. Policy Engine visible  
-   - Reglas tipadas  
-   - Severidad declarada  
-   - Registro en manifest  
-
-4. Quality Gate explícito  
-   - Política formal  
-   - Métricas snapshot  
-   - Decisión trazable  
-
-5. Manifest como contrato del run  
-   - Versión del pipeline  
-   - Schema del manifiesto  
-   - Catálogo de reglas  
-   - Conteos agregados  
-   - Resultado del gate  
-   - Referencia a artefactos  
-
-Permite auditoría posterior sin ejecutar código.
-
----
-
-## Qué Demuestra Este Repositorio
-
-- Pensamiento arquitectónico orientado a control
-- Diseño gobernado por política explícita
-- Separación clara entre reglas y orquestación
-- Disciplina de tipado estricto (mypy strict)
-- Calidad automatizada (ruff + pre-commit)
-- Evidencia estructurada y reproducible
-- Capacidad de escalar a entornos regulados
-
-No busca sobre‑ingeniería.
-Busca responsabilidad técnica.
-
----
-
-## Conclusión
-
-Esta solución no solo cumple el challenge técnico.
-
-Demuestra:
-
-- Accountability estructural
-- Trazabilidad verificable
-- Gobernanza explícita
-- Control de calidad formal
-- Arquitectura preparada para regulación
-
-No está diseñada solo para procesar datos.
-
-Está diseñada para justificar decisiones.
+- Paquete: `0.2.0`
+- Pipeline: `0.2.0`
+- Manifest schema: `ai_factory.workflow.run_manifest.v2`

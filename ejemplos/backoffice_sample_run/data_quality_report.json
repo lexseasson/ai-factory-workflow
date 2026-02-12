@@ -1,10 +1,13 @@
 {
-  "run_id": "fed15d0e-5de5-42a0-bfb6-965d4131075f",
-  "generated_utc": "2026-02-11T21:18:10+00:00",
+  "schema": "ai_factory.workflow.data_quality_report.v1",
+  "run_id": "6a6ea878-a633-4f11-aec8-4905f4cf953a",
+  "generated_utc": "2026-02-12T19:40:22+00:00",
   "totals": {
     "total": 20,
     "valid": 9,
-    "invalid": 11
+    "invalid": 11,
+    "acceptance_rate": 0.45,
+    "rejection_rate": 0.55
   },
   "rule_details": [
     {
@@ -47,8 +50,29 @@
       ]
     }
   ],
+  "failure_rate_by_rule": {
+    "AMOUNT_RANGE": 0.15,
+    "CURRENCY_ALLOWED": 0.1,
+    "NORMALIZATION_ERROR": 0.2,
+    "REQUIRED_FIELDS": 0.15
+  },
+  "quality_gate": {
+    "policy": {
+      "policy_id": "quality_gate.v1",
+      "max_rejection_rate": 0.4,
+      "min_acceptance_rate": 0.1
+    },
+    "decision": "WARN",
+    "rationale": "Rejection rate above threshold: 0.5500 > 0.4000",
+    "metrics_snapshot": {
+      "acceptance_rate": 0.45,
+      "rejection_rate": 0.55
+    }
+  },
   "notes": [
     "pass_rate computed as (total - failed_count)/total per rule_id",
-    "examples are record ids (id_solicitud) for quick audit sampling"
+    "examples are record ids (id_solicitud) for quick audit sampling",
+    "rates (acceptance/rejection) are computed from totals at write time",
+    "quality_gate decision is deterministic given policy + computed rates"
   ]
 }

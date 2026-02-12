@@ -1,24 +1,37 @@
 {
-  "pipeline_version": "0.1.0",
+  "schema": "ai_factory.workflow.run_manifest.v2",
+  "pipeline": {
+    "version": "0.2.0",
+    "component": "backoffice_admission_workflow"
+  },
   "run": {
-    "run_id": "fed15d0e-5de5-42a0-bfb6-965d4131075f",
-    "run_key": "2026-02-11_211809Z__backoffice_sample__fed15d0e",
+    "run_id": "6a6ea878-a633-4f11-aec8-4905f4cf953a",
+    "run_key": "2026-02-12_194022Z__backoffice_sample__6a6ea878",
     "run_label": "backoffice_sample",
-    "generated_utc": "2026-02-11T21:18:10+00:00",
-    "status": "SUCCESS",
-    "elapsed_ms_total": 22
+    "folder": "artifacts\\runs\\2026-02-12_194022Z__backoffice_sample__6a6ea878",
+    "generated_utc": "2026-02-12T19:40:22+00:00",
+    "status": "COMPLETED_WITH_WARNINGS",
+    "elapsed_ms_total": 66
   },
   "environment": {
-    "python": "3.11.9",
-    "platform": "nt"
+    "python_version": "3.11.9",
+    "platform": "windows-10",
+    "argv": [
+      "C:\\Users\\eugen\\source\\repos\\ai-factory-workflow\\src\\workflow\\run.py",
+      "--input",
+      "data/sample_requests.csv",
+      "--format",
+      "csv",
+      "--out",
+      "artifacts",
+      "--run-label",
+      "backoffice_sample"
+    ]
   },
   "input": {
     "path": "data\\sample_requests.csv",
+    "format": "csv",
     "sha256": "fb39b2f8ee26021d82c796b61bab412fb4166b06421a4593bf3128f6c2c3d273"
-  },
-  "quality_gate": {
-    "policy": "valid_records -> normalized_requests.csv; invalid_records -> rejected_requests.csv",
-    "quarantine": "rejected_requests.csv"
   },
   "artifacts": {
     "decision_log": "decision_log.jsonl",
@@ -44,6 +57,20 @@
       "scope": "eligibility"
     }
   ],
+  "quality_gate": {
+    "policy": {
+      "policy_id": "quality_gate.v1",
+      "max_rejection_rate": 0.4,
+      "min_acceptance_rate": 0.1
+    },
+    "decision": "WARN",
+    "rationale": "Rejection rate above threshold: 0.5500 > 0.4000",
+    "metrics_snapshot": {
+      "acceptance_rate": 0.45,
+      "rejection_rate": 0.55
+    },
+    "evidence": "data_quality_report.json"
+  },
   "counts": {
     "total": 20,
     "valid": 9,

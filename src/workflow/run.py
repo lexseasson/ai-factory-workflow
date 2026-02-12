@@ -12,7 +12,7 @@ from typing import Any
 
 from workflow.audit import AuditEvent, AuditLogger, StageTimer, utc_now_iso
 from workflow.engine import validate
-from workflow.io import InputFormatError, read_csv, write_clean_csv
+from workflow.io import InputFormatError, read_requests, write_clean_csv
 from workflow.normalize import NormalizationError, normalize
 from workflow.quality import (
     QualityGatePolicy,
@@ -32,8 +32,15 @@ class WorkflowError(RuntimeError):
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="AI Factory – Backoffice Admission Workflow")
+    parser = argparse.ArgumentParser(description="AI Factory - Backoffice Admission Workflow")
     parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument(
+        "--format",
+        type=str,
+        default="auto",
+        choices=["auto", "csv", "json", "txt", "cobol"],
+        help="Input format: auto (extension), csv, json, txt-delimited, cobol-fixed-width",
+    )
     parser.add_argument("--out", type=Path, default=Path("artifacts"))
     parser.add_argument("--run-label", type=str, default="")
     return parser.parse_args()
@@ -102,9 +109,6 @@ def main() -> int:
             )
         )
 
-    # --------------------------
-    # MANIFEST BASE (HEADER)
-    # --------------------------
     manifest: dict[str, Any] = {
         "schema": MANIFEST_SCHEMA,
         "pipeline": {
@@ -126,6 +130,7 @@ def main() -> int:
         },
         "input": {
             "path": str(args.input),
+            "format": args.format,
             "sha256": _sha256_file(args.input) if args.input.exists() else None,
         },
         "artifacts": {
@@ -146,21 +151,20 @@ def main() -> int:
         run_key=run_key,
         run_label=run_label,
         input_path=str(args.input),
+        input_format=args.format,
         output_dir=str(run_dir),
     )
 
-    # --------------------------
-    # INGEST
-    # --------------------------
     ingest_timer = StageTimer()
     try:
-        raw_rows = read_csv(args.input)
+        raw_rows = read_requests(args.input, input_format=args.format)
         log(
             "INFO",
             "ingest",
             "input_loaded",
             "Input file loaded",
             rows=len(raw_rows),
+            input_format=args.format,
             elapsed_ms=ingest_timer.elapsed_ms(),
         )
     except InputFormatError as exc:
@@ -172,9 +176,6 @@ def main() -> int:
         log("ERROR", "ingest", "input_invalid", str(exc), elapsed_ms=ingest_timer.elapsed_ms())
         return 2
 
-    # --------------------------
-    # RULES (eligibility)
-    # --------------------------
     rules: list[Rule] = [
         RequiredFieldsRule(),
         CurrencyAllowedRule(),
@@ -192,9 +193,6 @@ def main() -> int:
     valid = 0
     invalid = 0
 
-    # --------------------------
-    # PROCESS (normalize + validate)
-    # --------------------------
     process_timer = StageTimer()
 
     for raw in raw_rows:
@@ -286,9 +284,6 @@ def main() -> int:
         elapsed_ms=process_timer.elapsed_ms(),
     )
 
-    # --------------------------
-    # OUTPUTS
-    # --------------------------
     output_timer = StageTimer()
 
     write_clean_csv(normalized_path, clean_out)
@@ -317,9 +312,6 @@ def main() -> int:
         decision_log=_relpath(decision_log_path, run_dir),
     )
 
-    # --------------------------
-    # QUALITY GATE (GOVERNANCE)
-    # --------------------------
     total_records = len(raw_rows)
     acceptance_rate = 0.0 if total_records <= 0 else valid / total_records
     rejection_rate = 0.0 if total_records <= 0 else invalid / total_records
@@ -354,9 +346,6 @@ def main() -> int:
         evidence=_relpath(quality_path, run_dir),
     )
 
-    # --------------------------
-    # FINALIZE MANIFEST
-    # --------------------------
     manifest["counts"] = {
         "total": total_records,
         "valid": valid,

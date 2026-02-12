@@ -1,184 +1,131 @@
-# AI Factory – Backoffice Admission Control Engine
-## Arquitectura, Gobernanza y Decisiones de Diseño
+﻿# Diseno Tecnico - Mini Workflow Supervisado (Backoffice)
 
----
+## 1. Objetivo
 
-## 1. Propósito Arquitectónico
+Procesar solicitudes de alta de productos con un flujo simple, auditable y mantenible:
+- Ingesta
+- Normalizacion
+- Validacion
+- Control de calidad
+- Evidencia (logs + reportes)
 
-Este componente no es un simple ETL.  
-Es un **Admission Control Engine** diseñado bajo principios de:
-
-- Auditabilidad total
-- Gobernanza explícita
-- Determinismo operacional
-- Separación entre decisión y transformación
-- Evidencia reproducible
-
-Principio rector:
-
-> Si una decisión no puede reconstruirse, no es válida en entorno bancario.
-
----
-
-## 2. Qué Resuelve el Sistema
-
-Procesa solicitudes de alta de productos provenientes de canales externos y aplica:
-
-1. Ingesta controlada
-2. Normalización determinística
-3. Validación por reglas de elegibilidad
-4. Quality Gate formal
-5. Generación de evidencia auditada
-
----
-
-## 3. Arquitectura Funcional
+## 2. Arquitectura minima
 
 ```mermaid
 flowchart LR
-    A[Input File] --> B[Ingestion Layer]
-    B --> C[Normalization Layer]
-    C --> D[Rule Engine]
-    D -->|ACCEPT| E[Normalized Zone]
-    D -->|REJECT| F[Quarantine Zone]
-    D --> G[Data Quality Report]
-    B --> H[Decision Log]
+    A[Archivo de entrada] --> B[Ingesta]
+    B --> C[Normalizacion]
+    C --> D[Motor de reglas]
+    D --> E[Salida valida]
+    D --> F[Salida rechazada]
+    D --> G[Reporte de calidad]
+    B --> H[Decision log JSONL]
     C --> H
     D --> H
-    E --> I[Run Manifest]
+    E --> I[Run manifest]
     F --> I
     G --> I
     H --> I
 ```
 
-Interpretación bancaria:
+## 3. Componentes
 
-- **Quarantine explícita** protege sistemas downstream.
-- **Decision Log** permite reconstrucción por record_id.
-- **Run Manifest** actúa como índice forense del lote.
+- `workflow.io`
+  - Lee `csv`, `json`, `txt` delimitado y `cobol` fixed-width.
+- `workflow.normalize`
+  - Unifica fecha (`YYYY-MM-DD`), trimming y casing.
+  - Deriva `risk_bucket`.
+- `workflow.rules`
+  - Reglas de elegibilidad simples y extensibles.
+- `workflow.engine`
+  - Evalua reglas y construye decision por registro.
+- `workflow.quality`
+  - Resume totales, detalle por regla y decision de quality gate.
+- `workflow.audit`
+  - Logging estructurado en JSONL con timestamp y nivel.
+- `workflow.run`
+  - Orquesta el pipeline y genera artefactos.
 
----
+## 4. Estandares y convenciones
 
-## 4. Decisiones Arquitectónicas Clave
+### Nombres
+- `snake_case` para funciones/campos.
+- `UPPER_CASE` para constantes.
+- `rule_id` estable y legible (`REQUIRED_FIELDS`, `CURRENCY_ALLOWED`, etc.).
 
-### 4.1 Separación de Intención y Registro
+### Estructura
+- `src/workflow/` para logica.
+- `tests/` para validacion automatizada.
+- `data/` para entradas de ejemplo.
+- `artifacts/` para salidas de ejecucion.
+- `docs/` para diseno.
 
-El evento (event) describe intención estable.
-El message es humano.
-El log es estructurado (JSONL).
+### Logging
+- Formato JSONL (`decision_log.jsonl`).
+- Campos clave: `ts_utc`, `level`, `stage`, `event`, `run_id`, `record_id`, `rule_id`, `reason`.
+- Niveles: `INFO`, `WARN`, `ERROR`.
 
-Esto permite:
+### Manejo de errores
+- `InputFormatError`: archivo invalido o formato no soportado.
+- `NormalizationError`: dato invalido por registro.
+- Estrategia: no cortar el lote por errores de registro, enviar a `rejected_requests.csv`.
 
-- Ingesta en SIEM
-- Métricas por regla
-- Auditoría por correlación
+### Supuestos
+- Encoding: UTF-8/UTF-8-SIG.
+- Fecha valida: `YYYY-MM-DD`.
+- Monedas soportadas: `ARS`, `USD`, `EUR`.
 
----
+## 5. Validaciones implementadas
 
-### 4.2 Quality Gate Formal
+1. Campos obligatorios presentes.
+2. Moneda en lista permitida.
+3. Monto dentro de rango.
 
-Política explícita:
+## 6. Control de calidad
 
-invalid_rate <= 0.05
+`data_quality_report.json` incluye:
+- Totales (`total`, `valid`, `invalid`).
+- Tasas (`acceptance_rate`, `rejection_rate`).
+- Detalle por regla (`failed_count`, `pass_rate`, ejemplos).
+- `failure_rate_by_rule`.
+- `quality_gate` con politica versionada y decision (`PASS`/`WARN`).
 
-Esto introduce:
+## 7. Trazabilidad
 
-- Política versionable
-- Decisión automatizada
-- Trazabilidad entre métricas y decisión
-- Estado degradado controlado (COMPLETED_WITH_WARNINGS)
+Cada corrida genera:
+- `decision_log.jsonl`
+- `normalized_requests.csv`
+- `rejected_requests.csv`
+- `data_quality_report.json`
+- `run_manifest.json`
 
----
+El `run_manifest.json` consolida versiones, input hash, reglas aplicadas, metricas y rutas de artefactos.
 
-### 4.3 Deterministic Run Identity
+## 8. Supervisión técnica
 
-Cada ejecución genera:
+### Mantenibilidad
+- Modulos pequenos y con responsabilidad unica.
+- Reglas desacopladas de la orquestacion.
+- Contratos de datos tipados (`dataclasses`).
 
-run_key = timestamp + run_label + short_id
+### En code review revisaria
+- Correctitud de normalizacion (sin transformar semantica).
+- Claridad de mensajes de error y trazabilidad.
+- Estabilidad de `rule_id` y compatibilidad de reportes.
+- Cobertura de tests por formato y flujo E2E.
 
-Esto permite:
+### Riesgos y mitigaciones
+- Entrada con formato ambiguo.
+  - Mitigacion: `--format` explicito + validacion temprana.
+- Datos faltantes o corruptos.
+  - Mitigacion: errores controlados por registro + cuarentena.
+- Inconsistencia entre version de codigo y artefactos.
+  - Mitigacion: versionado unico en pipeline/manifest y pruebas E2E.
 
-- Reproducibilidad
-- Identificación humana del lote
-- Evidencia estable en filesystem
+## 9. Escalabilidad simple
 
----
-
-### 4.4 Manifest como Índice de Auditoría
-
-El run_manifest.json contiene:
-
-- Versión del pipeline
-- Schema del manifiesto
-- Hash SHA256 del input
-- Catálogo de reglas
-- Conteos agregados
-- Resultado del Quality Gate
-- Rutas relativas a artefactos
-- Tiempo total de ejecución
-
-Esto convierte cada corrida en una unidad auditable.
-
----
-
-## 5. Qué Se Prefirió y Por Qué
-
-### No usar frameworks pesados
-
-El challenge no requiere orquestadores externos.
-Se privilegió simplicidad efectiva y claridad estructural.
-
-### No usar ML
-
-El alcance es validación y control de datos.
-Agregar ML sería ruido y sobre-ingeniería.
-
-### No detener lote completo por registro inválido
-
-Principio de continuidad operacional:
-Un registro defectuoso no debe comprometer el lote completo.
-
----
-
-## 6. Controles Diseñados para Escalar
-
-Aunque no implementados por scope:
-
-- Firma criptográfica del manifiesto
-- Versionado formal de reglas
-- Aprobación regulatoria por rule_version
-- Almacenamiento WORM del decision log
-- Métricas SLA por etapa
-- Lineage formal input-output
-
----
-
-## 7. Por Qué Esto Es Arquitectura Bancaria
-
-El sistema implementa:
-
-- Quarantine explícita
-- Policy engine formal
-- Evidence log estructurado
-- Reproducibilidad
-- Deterministic run identity
-- Governance layer desacoplada
-
-Esto no es scripting.
-Es diseño orientado a control interno y cumplimiento.
-
----
-
-## 8. Conclusión
-
-La solución cumple el challenge y va más allá al introducir:
-
-- Accountability explícita
-- Control de calidad formal
-- Evidencia verificable
-- Diseño mantenible
-- Extensibilidad controlada
-
-Arquitectura mínima.
-Arquitectura clara.
-Arquitectura auditable.
+Siguientes pasos naturales:
+- Catalogo versionado de reglas por ambiente.
+- Persistencia de logs en sistema centralizado.
+- Trazabilidad cruzada con origen de canal.
+- Suite de regresion con datasets sinteticos por formato legacy.

@@ -1,0 +1,35 @@
+﻿[
+  {
+    "id_solicitud": "REQ-1001",
+    "fecha_solicitud": "2026-02-10",
+    "tipo_producto": "cuenta",
+    "id_cliente": "CLI-2001",
+    "monto_o_limite": "150000",
+    "moneda": "ARS",
+    "pais": "AR",
+    "is_vip": "true",
+    "risk_score": "15"
+  },
+  {
+    "id_solicitud": "REQ-1002",
+    "fecha_solicitud": "2026-02-11",
+    "tipo_producto": "tarjeta",
+    "id_cliente": "CLI-2002",
+    "monto_o_limite": "0",
+    "moneda": "USD",
+    "pais": "AR",
+    "is_vip": "false",
+    "risk_score": "35"
+  },
+  {
+    "id_solicitud": "REQ-1003",
+    "fecha_solicitud": "2026-02-12",
+    "tipo_producto": "servicio",
+    "id_cliente": "CLI-2003",
+    "monto_o_limite": "250",
+    "moneda": "BRL",
+    "pais": "BR",
+    "is_vip": "false",
+    "risk_score": "55"
+  }
+]
