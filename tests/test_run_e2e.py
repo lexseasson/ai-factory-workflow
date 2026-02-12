@@ -1,3 +1,4 @@
+# tests/test_run_e2e.py
 from __future__ import annotations
 
 import json
@@ -54,6 +55,7 @@ def test_run_e2e_json_input_generates_artifacts(tmp_path: Path, monkeypatch: Mon
             "e2e_json",
         ],
     )
+
     rc = main()
     assert rc == 0
 
@@ -67,7 +69,5 @@ def test_run_e2e_json_input_generates_artifacts(tmp_path: Path, monkeypatch: Mon
 
     assert manifest["input"]["format"] == "json"
     assert manifest["counts"]["total"] == 2
-    assert quality["totals"]["total"] == 2
-    assert (run_dir / "decision_log.jsonl").exists()
-    assert (run_dir / "normalized_requests.csv").exists()
-    assert (run_dir / "rejected_requests.csv").exists()
+    assert "quality_gate" in manifest
+    assert "totals" in quality

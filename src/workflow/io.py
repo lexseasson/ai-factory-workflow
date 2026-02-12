@@ -8,6 +8,7 @@ from pathlib import Path
 
 from workflow.models import RawRequest
 
+# Columnas mínimas requeridas por el challenge (y por el contrato de entrada del motor)
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "id_solicitud",
     "fecha_solicitud",
@@ -22,16 +23,19 @@ REQUIRED_COLUMNS: tuple[str, ...] = (
 
 
 class InputFormatError(ValueError):
-    pass
+    """Error de formato de entrada: no cumple el contrato mínimo esperado."""
 
 
 @dataclass(frozen=True)
 class FixedWidthField:
+    """Definición de campo fixed-width (estilo COBOL/mainframe)."""
+
     name: str
     start: int
     end: int
 
 
+# Layout por defecto para un ejemplo fixed-width. En un banco real, esto es contrato/versionado.
 DEFAULT_COBOL_LAYOUT: tuple[FixedWidthField, ...] = (
     FixedWidthField("id_solicitud", 0, 12),
     FixedWidthField("fecha_solicitud", 12, 22),
@@ -46,6 +50,8 @@ DEFAULT_COBOL_LAYOUT: tuple[FixedWidthField, ...] = (
 
 
 def _build_raw_request(row: Mapping[str, object | None]) -> RawRequest:
+    """Convierte un mapping (fila) en RawRequest, normalizando None -> ''."""
+
     def g(k: str) -> str:
         v = row.get(k)
         return "" if v is None else str(v)
@@ -64,15 +70,20 @@ def _build_raw_request(row: Mapping[str, object | None]) -> RawRequest:
 
 
 def _assert_required_columns(cols: Iterable[str]) -> None:
+    """Garantiza contrato mínimo. Si falta algo, fallamos rápido con mensaje claro."""
     colset = set(cols)
     missing = [c for c in REQUIRED_COLUMNS if c not in colset]
     if missing:
         raise InputFormatError(f"Input missing required columns: {missing}")
 
 
-def read_csv(path: Path) -> list[RawRequest]:
+def _assert_file_exists(path: Path) -> None:
     if not path.exists():
         raise InputFormatError(f"Input file not found: {path}")
+
+
+def read_csv(path: Path) -> list[RawRequest]:
+    _assert_file_exists(path)
 
     with path.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
@@ -83,14 +94,17 @@ def read_csv(path: Path) -> list[RawRequest]:
 
 
 def read_json(path: Path) -> list[RawRequest]:
-    if not path.exists():
-        raise InputFormatError(f"Input file not found: {path}")
+    _assert_file_exists(path)
 
     try:
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         raise InputFormatError(f"Invalid JSON file: {path}") from exc
 
+    # Aceptamos:
+    # - lista directa: [ {...}, {...} ]
+    # - wrapper: { "requests": [ {...}, ... ] }
+    records: object
     if isinstance(payload, dict) and "requests" in payload:
         records = payload.get("requests")
     else:
@@ -109,6 +123,7 @@ def read_json(path: Path) -> list[RawRequest]:
 
 
 def _detect_delimiter(header_line: str) -> str | None:
+    """Detección mínima, suficiente para challenge: |, TAB, ;, ,"""
     for candidate in ("|", "\t", ";", ","):
         if candidate in header_line:
             return candidate
@@ -116,8 +131,8 @@ def _detect_delimiter(header_line: str) -> str | None:
 
 
 def read_txt_delimited(path: Path) -> list[RawRequest]:
-    if not path.exists():
-        raise InputFormatError(f"Input file not found: {path}")
+    """Lee TXT delimitado con header. Si no detecta delimitador, pide cobol/fixed-width."""
+    _assert_file_exists(path)
 
     lines = path.read_text(encoding="utf-8-sig").splitlines()
     non_empty = [ln for ln in lines if ln.strip()]
@@ -139,17 +154,23 @@ def read_txt_delimited(path: Path) -> list[RawRequest]:
 
 
 def read_cobol_fixed_width(
-    path: Path, layout: tuple[FixedWidthField, ...] = DEFAULT_COBOL_LAYOUT
+    path: Path,
+    layout: tuple[FixedWidthField, ...] = DEFAULT_COBOL_LAYOUT,
 ) -> list[RawRequest]:
-    if not path.exists():
-        raise InputFormatError(f"Input file not found: {path}")
+    """Lee fixed-width (estilo COBOL). Layout versionable; default incluido como ejemplo."""
+    _assert_file_exists(path)
 
     rows: list[RawRequest] = []
-    for line in path.read_text(encoding="utf-8-sig").splitlines():
+    for line_no, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), start=1):
         if not line.strip():
             continue
         row = {f.name: line[f.start : f.end].strip() for f in layout}
-        _assert_required_columns(row.keys())
+
+        try:
+            _assert_required_columns(row.keys())
+        except InputFormatError as exc:
+            raise InputFormatError(f"Fixed-width layout mismatch at line {line_no}: {exc}") from exc
+
         rows.append(_build_raw_request(row))
 
     if not rows:
@@ -158,14 +179,21 @@ def read_cobol_fixed_width(
 
 
 def read_requests(path: Path, input_format: str = "auto") -> list[RawRequest]:
+    """
+    Fachada única de ingesta (un solo entrypoint para el workflow).
+    input_format:
+      - auto (por extensión)
+      - csv | json | txt | cobol
+    """
     fmt = input_format.lower().strip()
+
     if fmt == "auto":
         suffix = path.suffix.lower()
         if suffix == ".csv":
             fmt = "csv"
         elif suffix == ".json":
             fmt = "json"
-        elif suffix in {".txt"}:
+        elif suffix == ".txt":
             fmt = "txt"
         elif suffix in {".dat", ".cob"}:
             fmt = "cobol"
@@ -182,10 +210,12 @@ def read_requests(path: Path, input_format: str = "auto") -> list[RawRequest]:
         return read_txt_delimited(path)
     if fmt in {"cobol", "fixed", "fixed-width"}:
         return read_cobol_fixed_width(path)
+
     raise InputFormatError(f"Unsupported format '{input_format}'. Use csv|json|txt|cobol")
 
 
 def write_clean_csv(path: Path, rows: Iterable[dict[str, object]]) -> None:
+    """Escritura estable a CSV con header; si no hay filas, archivo vacío."""
     rows_list = list(rows)
     path.parent.mkdir(parents=True, exist_ok=True)
 
