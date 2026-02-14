@@ -1,52 +1,81 @@
-﻿# AI Factory Workflow - Challenge Backoffice
+# AI Factory Workflow
 
-Mini-workflow supervisado para alta de productos en Backoffice, orientado a claridad, trazabilidad y control de calidad.
+Mini-workflow supervisado para alta de productos de Back-Office, orientado a trazabilidad, simplicidad efectiva y calidad operativa.
 
-## 1. Alcance
+## Resumen Ejecutivo
 
-Entrada -> normalizacion -> validacion -> reporte de calidad -> artefactos auditables.
+Este repositorio implementa un flujo end-to-end:
 
-Formato de entrada soportado:
-- `csv`
-- `json`
-- `txt` delimitado (`|`, `;`, `,` o tab)
-- `cobol` fixed-width (layout incluido)
+`entrada -> normalizacion -> validacion -> control de calidad -> artefactos auditables`
 
-## 2. Arquitectura minima
+Con foco en:
+- Diseno claro y mantenible.
+- Evidencia tecnica auditable (logs + reportes).
+- Reglas de elegibilidad simples y extensibles.
+- Operacion reproducible para evaluacion tecnica.
+
+## Contexto del Challenge
+
+Este trabajo responde al challenge:
+
+`Challenge Tecnico - Lider Tecnico / Arquitecto de Solucion (AI & Sistemas Legados), Febrero 2026`
+
+Documento completo del enunciado:
+- `docs/challenge_tecnico.md`
+
+Documento de diseno (Etapa 1):
+- `docs/design.md`
+
+## Arquitectura
 
 Componentes principales:
-- `workflow.io`: ingesta multi-formato
-- `workflow.normalize`: normalizacion de campos
-- `workflow.rules`: reglas de elegibilidad
-- `workflow.engine`: evaluacion de reglas
-- `workflow.quality`: reporte y quality gate
-- `workflow.audit`: logging estructurado JSONL
-- `workflow.run`: orquestacion del workflow
+- `workflow.io`: ingesta multi-formato (`csv`, `json`, `txt` delimitado y `cobol` fixed-width).
+- `workflow.normalize`: normalizacion de fechas, trimming, casing y campos derivados.
+- `workflow.rules`: reglas de elegibilidad.
+- `workflow.engine`: evaluacion de reglas por registro.
+- `workflow.quality`: calculo de metricas, resumen y quality gate.
+- `workflow.audit`: logging estructurado JSONL.
+- `workflow.run`: orquestacion de pipeline y publicacion de artefactos.
 
-## 3. Reglas implementadas
+## Reglas Implementadas
 
-- `REQUIRED_FIELDS`: campos obligatorios
-- `CURRENCY_ALLOWED`: monedas permitidas (`ARS`, `USD`, `EUR`)
-- `AMOUNT_RANGE`: rango de `monto_o_limite` (`1` a `1_000_000`)
+- `REQUIRED_FIELDS`: campos obligatorios.
+- `CURRENCY_ALLOWED`: monedas permitidas (`ARS`, `USD`, `EUR`).
+- `AMOUNT_RANGE`: rango de `monto_o_limite` (`1` a `1_000_000`).
 
-## 4. Layout COBOL fixed-width
+## Estructura del Repositorio
 
-Cuando se usa `--format cobol`, cada linea se parsea con este layout:
+- `src/workflow/`: codigo del workflow.
+- `tests/`: unit tests + E2E.
+- `data/`: datasets de ejemplo.
+- `artifacts/`: salidas por corrida.
+- `docs/`: diseno y documentacion del challenge.
 
-- `id_solicitud`: 0-12
-- `fecha_solicitud`: 12-22
-- `tipo_producto`: 22-34
-- `id_cliente`: 34-46
-- `monto_o_limite`: 46-58
-- `moneda`: 58-61
-- `pais`: 61-63
-- `is_vip`: 63-68
-- `risk_score`: 68-71
+## Quickstart
 
-## 5. Ejecucion
+### 1) Clonar el repositorio
+
+```bash
+git clone <URL_DEL_REPO>.git
+cd ai-factory-workflow
+```
+
+### 2) Crear y activar entorno virtual (Windows PowerShell)
 
 ```powershell
-set PYTHONPATH=src
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+### 3) Configurar `PYTHONPATH`
+
+```powershell
+$env:PYTHONPATH = "src"
+```
+
+### 4) Ejecutar el workflow
+
+```powershell
 python -m workflow.run --input data/sample_requests.csv --format csv --out artifacts --run-label backoffice_csv
 ```
 
@@ -60,38 +89,68 @@ python -m workflow.run --input data/sample_requests.cob --format cobol --out art
 
 Tambien se puede usar `--format auto` para inferir por extension.
 
-## 6. Artefactos de salida
+## Artefactos de Salida
 
-Por corrida se genera `artifacts/runs/<run_key>/` con:
+Cada corrida genera `artifacts/runs/<run_key>/`:
 - `normalized_requests.csv`
 - `rejected_requests.csv`
 - `data_quality_report.json`
 - `decision_log.jsonl`
 - `run_manifest.json`
 
-## 7. Cobertura del challenge
+## Layout COBOL (fixed-width)
 
-- Diseno: `docs/design.md`
-- Implementacion: `src/workflow/`
-- Validaciones: `src/workflow/rules.py`
-- Control de calidad: `src/workflow/quality.py`
-- Logs y trazabilidad: `src/workflow/audit.py` + `run_manifest.json`
-- Instrucciones de ejecucion: este `README.md`
+Cuando se usa `--format cobol`, el parser aplica:
+- `id_solicitud`: 0-12
+- `fecha_solicitud`: 12-22
+- `tipo_producto`: 22-34
+- `id_cliente`: 34-46
+- `monto_o_limite`: 46-58
+- `moneda`: 58-61
+- `pais`: 61-63
+- `is_vip`: 63-68
+- `risk_score`: 68-71
 
-## 8. Calidad de codigo
+## Calidad Tecnica
 
-Tests:
+Ejecutar tests:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Incluye:
-- tests unitarios de normalizacion y reglas
-- tests de ingesta multi-formato
-- test E2E del workflow con verificacion de artefactos
+Cobertura funcional incluida:
+- Normalizacion y reglas.
+- Ingesta multi-formato.
+- Flujo E2E con verificacion de artefactos.
 
-## 9. Versionado
+## Etapas del Challenge (Mapa de Cobertura)
+
+- Etapa 1 - Diseno:
+  - `docs/design.md`
+- Etapa 2 - Implementacion:
+  - `src/workflow/`
+  - `tests/`
+- Etapa 3 - Presentacion tecnica:
+  - Soporte con arquitectura, decisiones, artefactos y demo reproducible.
+
+## Subir a Repositorio Remoto (GitHub/GitLab/Azure DevOps)
+
+Si el remoto todavia no esta configurado:
+
+```bash
+git remote add origin <URL_DEL_REPO_REMOTO>.git
+git branch -M main
+git push -u origin main
+```
+
+Si ya existe remoto:
+
+```bash
+git push
+```
+
+## Versionado
 
 - Paquete: `0.2.0`
 - Pipeline: `0.2.0`
