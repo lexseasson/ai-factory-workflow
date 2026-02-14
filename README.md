@@ -60,26 +60,56 @@ git clone <URL_DEL_REPO>.git
 cd ai-factory-workflow
 ```
 
-### 2) Crear y activar entorno virtual (Windows PowerShell)
+### 2) Prerrequisitos
+
+- Python 3.11 o superior
+- Git
+
+### 3) Crear y activar entorno virtual
+
+Windows (PowerShell):
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-### 3) Configurar `PYTHONPATH`
+Ubuntu/Linux (bash):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 4) Configurar `PYTHONPATH`
+
+Windows (PowerShell):
 
 ```powershell
 $env:PYTHONPATH = "src"
 ```
 
-### 4) Ejecutar el workflow
+Ubuntu/Linux (bash):
+
+```bash
+export PYTHONPATH=src
+```
+
+### 5) Ejecutar el workflow
+
+Windows (PowerShell):
 
 ```powershell
 python -m workflow.run --input data/sample_requests.csv --format csv --out artifacts --run-label backoffice_csv
 ```
 
-Ejemplos por formato:
+Ubuntu/Linux (bash):
+
+```bash
+python -m workflow.run --input data/sample_requests.csv --format csv --out artifacts --run-label backoffice_csv
+```
+
+Ejemplos por formato (ambos SO):
 
 ```powershell
 python -m workflow.run --input data/sample_requests.json --format json --out artifacts --run-label backoffice_json
@@ -113,10 +143,32 @@ Cuando se usa `--format cobol`, el parser aplica:
 
 ## Calidad Tecnica
 
+Instalar dependencias de testing:
+
+Windows (PowerShell):
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install pytest
+```
+
+Ubuntu/Linux (bash):
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install pytest
+```
+
 Ejecutar tests:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
+```
+
+En Ubuntu/Linux:
+
+```bash
+python -m pytest -q
 ```
 
 Cobertura funcional incluida:
